@@ -13,6 +13,7 @@ class Genre(BaseModel):
 
 
 class Person(BaseModel):
+    id: str
     full_name: str
 
 
@@ -33,5 +34,5 @@ class ESFilmwork(BaseModel):
     director: str
     actors_names: str
     writers_names: str
-    actors: dict
-    writers: dict
+    actors: list[PersonFilmwork]
+    writers: list[PersonFilmwork]
