@@ -1,3 +1,10 @@
+extract_modified_filmworks_by_filmworls = """
+    SELECT DISTINCT id, modified_at
+    FROM content.filmwork
+    WHERE modified_at > %s::date
+    ORDER BY modified_at;
+"""
+
 extract_modified_genres = """
     SELECT DISTINCT id, modified_at
     FROM content.genre
@@ -10,6 +17,20 @@ extract_modified_filmworks_by_genres = """
     FROM content.filmwork fw
     LEFT JOIN content.genre_filmwork gfw ON gfw.filmwork_id = fw.id 
     WHERE gfw.genre_id IN %s;
+"""
+
+extract_modified_persons = """
+    SELECT DISTINCT id, modified_at
+    FROM content.person
+    WHERE modified_at > %s::date
+    ORDER BY modified_at;
+"""
+
+extract_modified_filmworks_by_persons = """
+    SELECT DISTINCT fw.id, fw.modified_at
+    FROM content.filmwork fw
+    LEFT JOIN content.person_filmwork pfw ON pfw.filmwork_id = fw.id 
+    WHERE pfw.person_id IN %s;
 """
 
 extract_modified_filmworks = """

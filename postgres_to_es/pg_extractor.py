@@ -6,6 +6,14 @@ from psycopg2.extras import DictCursor
 from utils.schemas import ESFilmwork, Person
 from utils import queries
 
+import logging
+
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(name)s:%(levelname)s - %(message)s'
+)
+
 
 class PostgresExtractor:
 
@@ -29,35 +37,78 @@ class PostgresExtractor:
                 
                 yield results
     
+    def extract_filmwork_ids(self, objects, table_name):
+
+        query = {
+            'genres': queries.extract_modified_filmworks_by_genres,
+            'persons': queries.extract_modified_filmworks_by_persons,
+        }
+
+        for block in objects:
+            message = 'Extracted %s objects from %s.'
+            logging.info(message, len(block), table_name)
+
+            modified_objects_ids = []
+            modified_filmworks_ids = []
+            for object in block:
+                modified_objects_ids.append(dict(object).get('id'))
+            
+            if modified_objects_ids:
+                modified_filmworks = self.execute_query(
+                    query[table_name],
+                    (tuple(modified_objects_ids),),
+                )
+
+                for fw_block in modified_filmworks:
+                    message = 'Extracted %s filmworks.'
+                    logging.info(message, len(fw_block))
+
+                    for fw in fw_block:
+                        modified_filmworks_ids.append(dict(fw).get('id'))
+                    
+                    yield modified_filmworks_ids
+    
     def get_fw_ids_by_modified_genres(self, last_modified: datetime) -> list:
-        """Extracting modified genre objects."""
+        """Get filmwork id list that have modified genre objects."""
 
         modified_genres = self.execute_query(
             queries.extract_modified_genres,
             (last_modified,),
         )
 
-        for genres_block in modified_genres:
-            modified_filmworks_ids = []
-            modified_genres_ids = []
-            for genre in genres_block:
-                modified_genres_ids.append(dict(genre).get('id'))
+        result = self.extract_filmwork_ids(modified_genres, 'genres')
+        for fw_ids in result:
+            yield fw_ids
+    
+    def get_fw_ids_by_modified_persons(self, last_modified: datetime) -> list:
+        """Get filmwork id list that have modified person objects."""
+
+        modified_persons = self.execute_query(
+            queries.extract_modified_persons,
+            (last_modified,),
+        )
+
+        result = self.extract_filmwork_ids(modified_persons, 'persons')
+        for fw_ids in result:
+            yield fw_ids
+    
+    def get_fw_ids_by_modified_filmworks(self, last_modified: datetime) -> list:
+        """Get modified filmwork ids."""
+
+        modified_filmworks = self.execute_query(
+            queries.extract_modified_filmworks_by_filmworls,
+            (last_modified,),
+        )
+
+        for block in modified_filmworks:
+            message = 'Extracted %s objects from filmworks.'
+            logging.info(message, len(block))
+            modified_filmwork_ids = []
+            for object in block:
+                modified_filmwork_ids.append(dict(object).get('id'))
             
-            if modified_genres_ids:
-                modified_filmworks = self.execute_query(
-                    queries.extract_modified_filmworks_by_genres,
-                    (tuple(modified_genres_ids),),
-                )
-                for filmworks_block in modified_filmworks:
-                    for item in filmworks_block:
-                        modified_filmworks_ids.append(dict(item).get('id'))
-                    
-                    yield modified_filmworks_ids
+            yield modified_filmwork_ids
 
-    def extract_modified_persons(self, last_modified: datetime) -> list:
-        """Extracting modified person objects."""
-
-        pass
     
     def extract_filmworks(self, modified_ids: list):
         """Extracting modified filmwork full data."""
@@ -68,9 +119,6 @@ class PostgresExtractor:
         )
 
         for filmworks_block in modified_filmworks:
-
-            print(filmworks_block)
-        
             filmworks = []
             for filmwork in filmworks_block:
                 filmwork = dict(filmwork)
@@ -89,8 +137,12 @@ class PostgresExtractor:
                 filmwork.update({
                     'genre': ', '.join(filmwork.pop('genres')),
                     'director': persons['DR'],
-                    'actors_names': ', '.join([actor.full_name for actor in persons['AC']]),
-                    'writers_names': ', '.join([writer.full_name for writer in persons['PR']]),
+                    'actors_names': ', '.join(
+                        [actor.full_name for actor in persons['AC']]
+                    ),
+                    'writers_names': ', '.join(
+                        [writer.full_name for writer in persons['PR']]
+                    ),
                     'actors': persons['AC'],
                     'writers': persons['PR'],
                 })

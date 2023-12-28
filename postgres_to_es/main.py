@@ -9,14 +9,10 @@ from state.state import state
 
 load_dotenv()
 
-# TABLES = {
-#     'film_work': Filmwork,
-#     'person': Person,
-#     'genre': Genre,
-#     'genre_film_work': GenreFilmwork,
-#     'person_film_work': PersonFilmwork,
-# }
-
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(name)s:%(levelname)s - %(message)s'
+)
 
 BLOCK_SIZE = 100
 
@@ -32,22 +28,43 @@ DSN = {
 
 class ETL:
 
-    def __init__(self, pg_params: dict, block_size: int):
-        self.pg_extractor = PostgresExtractor(
-            'skip',
-            pg_params,
-            block_size,
-        )
+    def __init__(
+            self,
+            block_size: int,
+            pg_extractor: PostgresExtractor,
+        ) -> None:
+            """Initialize ETL class."""
+
+            self.block_size = block_size
+            self.pg_extractor = pg_extractor
     
     def run(self, last_modified: datetime):
-        pass
+        self.etl_genres(last_modified)
+        self.etl_persons(last_modified)
+        self.etl_filmworks(last_modified)
 
     def etl_genres(self, last_modified: datetime):
         fw_ids = self.pg_extractor.get_fw_ids_by_modified_genres(last_modified)
         for block in fw_ids:
             fws = self.pg_extractor.extract_filmworks(list(block))
             for fw_block in fws:
-                # Upload to ES.
+                print(len(fw_block))
+                pass
+    
+    def etl_persons(self, last_modified: datetime):
+        fw_ids = self.pg_extractor.get_fw_ids_by_modified_persons(last_modified)
+        for block in fw_ids:
+            fws = self.pg_extractor.extract_filmworks(list(block))
+            for fw_block in fws:
+                print(len(fw_block))
+                pass
+    
+    def etl_filmworks(self, last_modified: datetime):
+        fw_ids = self.pg_extractor.get_fw_ids_by_modified_filmworks(last_modified)
+        for block in fw_ids:
+            fws = self.pg_extractor.extract_filmworks(list(block))
+            for fw_block in fws:
+                print(len(fw_block))
                 pass
 
 
@@ -57,15 +74,12 @@ def main():
     data = state.get_state('last_modified')
     if not data:
         state.set_state('last_modified', str(datetime(2000, 1, 1)))
-
-    last_modified = state.get_state('last_modified')
-    fw_ids = pg_extractor.get_fw_ids_by_modified_genres(last_modified)
-    for block in fw_ids:
-        filmworks = pg_extractor.extract_filmworks(list(block))
-        for fw_block in filmworks:
-            # here will be upload to ES.
-            pass
-
+    data = state.get_state('last_modified')
+    
+    etl = ETL(BLOCK_SIZE, pg_extractor)
+    while True:
+        etl.run(data)
+        break
 
 if __name__ == '__main__':
     main()
