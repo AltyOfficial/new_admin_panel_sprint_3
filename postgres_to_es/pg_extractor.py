@@ -3,178 +3,98 @@ from datetime import datetime
 import psycopg2
 from psycopg2.extras import DictCursor
 
+from utils.schemas import ESFilmwork, Person
+from utils import queries
 
 
 class PostgresExtractor:
 
-    def __init__(self, tables: list, params: dict) -> None:
+    def __init__(self, tables: list, params: dict, block_size: int) -> None:
         self.tables = tables
         self.dsn = params
+        self.block_size = block_size
     
-    def extract_modified_genres(self, last_modified: datetime) -> list:
+    def execute_query(self, query: str, params=None):
+        """Execute query with optional params."""
+    
+        with psycopg2.connect(**self.dsn, cursor_factory=DictCursor) as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+
+            while True:
+                results = cursor.fetchmany(self.block_size)
+                if not results:
+                    cursor.close()
+                    break
+                
+                yield results
+    
+    def get_fw_ids_by_modified_genres(self, last_modified: datetime) -> list:
         """Extracting modified genre objects."""
 
-        query = f"""
-            SELECT id, modified_at
-            FROM content.genre
-            WHERE modified_at > %s::date
-            ORDER BY modified_at
-            LIMIT 10
-        """
+        modified_genres = self.execute_query(
+            queries.extract_modified_genres,
+            (last_modified,),
+        )
 
-        with psycopg2.connect(**self.dsn, cursor_factory=DictCursor) as conn:
-            cursor = conn.cursor()
-            cursor.execute(query, (last_modified,))
-            results = cursor.fetchall()
-            cursor.close()
+        for genres_block in modified_genres:
+            modified_filmworks_ids = []
+            modified_genres_ids = []
+            for genre in genres_block:
+                modified_genres_ids.append(dict(genre).get('id'))
+            
+            if modified_genres_ids:
+                modified_filmworks = self.execute_query(
+                    queries.extract_modified_filmworks_by_genres,
+                    (tuple(modified_genres_ids),),
+                )
+                for filmworks_block in modified_filmworks:
+                    for item in filmworks_block:
+                        modified_filmworks_ids.append(dict(item).get('id'))
+                    
+                    yield modified_filmworks_ids
 
-        modified_filmworks_ids = []
-        modified_genres_ids = []
-        for item in results:
-            item = dict(item)
-            modified_genres_ids.append(item['id'])
-        
-        query = f"""
-            SELECT fw.id, fw.modified_at
-            FROM content.filmwork fw
-            LEFT JOIN content.genre_filmwork gfw ON gfw.filmwork_id = fw.id 
-            WHERE gfw.genre_id IN %s
-            LIMIT 10
-        """
-        if modified_genres_ids:
-            with psycopg2.connect(**self.dsn, cursor_factory=DictCursor) as conn:
-                cursor = conn.cursor()
-                cursor.execute(query, (tuple(modified_genres_ids),))
-                results = cursor.fetchall()
-                cursor.close()
+    def extract_modified_persons(self, last_modified: datetime) -> list:
+        """Extracting modified person objects."""
 
-            for item in results:
-                item = dict(item)
-                modified_filmworks_ids.append(item['id'])
-
-        return modified_filmworks_ids
+        pass
     
-    def extract_filmwork_data(self, modified_ids: list):
+    def extract_filmworks(self, modified_ids: list):
         """Extracting modified filmwork full data."""
 
-        query = f"""
-            SELECT
-                fw.id, 
-                fw.title, 
-                fw.description, 
-                fw.rating, 
-                fw.type, 
-                fw.created_at, 
-                fw.modified_at,
-                JSON_AGG(
-                    json_build_object(
-                        'id', p.id,
-                        'full_name', p.full_name,
-                        'role', pfw.role
-                    )
-                ) FILTER (WHERE pfw.role = 'PR') as persons,
-                ARRAY_AGG(DISTINCT g.name) as genres
-            FROM content.filmwork fw
-            LEFT JOIN content.person_filmwork pfw ON pfw.filmwork_id = fw.id
-            LEFT JOIN content.person p ON p.id = pfw.person_id
-            LEFT JOIN content.genre_filmwork gfw ON gfw.filmwork_id = fw.id
-            LEFT JOIN content.genre g ON g.id = gfw.genre_id
-            WHERE fw.title = 'Star Slammer'
-            GROUP BY fw.id
-            LIMIT 10;
-        """
+        modified_filmworks = self.execute_query(
+            queries.extract_modified_filmworks,
+            (tuple(modified_ids),)
+        )
 
-        with psycopg2.connect(**self.dsn, cursor_factory=DictCursor) as conn:
-            cursor = conn.cursor()
-            cursor.execute(query)
-            results = cursor.fetchall()
-            cursor.close()
+        for filmworks_block in modified_filmworks:
+
+            print(filmworks_block)
         
-        for item in results:
-            item = dict(item)
-            print(item['title'], item['genres'], item['persons'])
-        
-        # print(results)
-
-    def extract_data(self, table: str):
-        """Extracting last modified data from a table."""
-
-        query = f"""
-        SELECT id, full_name, modified_at
-        FROM content.person
-        ORDER BY modified_at
-        LIMIT 10
-        """
-
-        with psycopg2.connect(**self.dsn, cursor_factory=DictCursor) as conn:
-            cursor = conn.cursor()
-            cursor.execute(query)
-            results = cursor.fetchall()
-            cursor.close()
-
-        person_ids = []
-        for item in results:
-            item = dict(item)
-            person_ids.append(item['id'])
-        
-        query = f"""
-        SELECT fw.id, fw.modified_at
-        FROM content.filmwork fw
-        LEFT JOIN content.person_filmwork pfw ON pfw.filmwork_id = fw.id 
-        WHERE pfw.person_id IN {tuple(person_ids)}
-        LIMIT 10
-        """
-
-        with psycopg2.connect(**self.dsn, cursor_factory=DictCursor) as conn:
-            cursor = conn.cursor()
-            cursor.execute(query)
-            results = cursor.fetchall()
-            cursor.close()
-        
-        filmwork_ids = []
-        for item in results:
-            item = dict(item)
-            filmwork_ids.append(item['id'])
-        
-        query = f"""
-        SELECT DISTINCT
-            fw.id as fw_id,
-            fw.title,
-            fw.description,
-            fw.rating,
-            fw.type,
-            fw.created_at,
-            fw.modified_at,
-            ARRAY_AGG(g.name) AS genres
-        FROM content.filmwork fw
-        LEFT JOIN content.person_filmwork pfw ON pfw.filmwork_id = fw.id
-        LEFT JOIN content.person p ON p.id = pfw.person_id
-        LEFT JOIN content.genre_filmwork gfw ON gfw.filmwork_id = fw.id
-        LEFT JOIN content.genre g ON g.id = gfw.genre_id
-        WHERE fw.id IN {tuple(filmwork_ids)}
-        GROUP BY fw.id;
-        """
-
-        with psycopg2.connect(**self.dsn, cursor_factory=DictCursor) as conn:
-            cursor = conn.cursor()
-            cursor.execute(query, (filmwork_ids,))
-            results = cursor.fetchall()
-            cursor.close()
-        
-        query = f"""
-        SELECT 
-            p.id,
-            p.full_name,
-            pfw.role
-        FROM content.person p
-        LEFT JOIN content.person_filmwork pfw ON pfw.person_id = p.id
-        WHERE pfw.filmwork_id IN {tuple(filmwork_ids)} AND pfw.role = 'DR'
-        """
-
-        with psycopg2.connect(**self.dsn, cursor_factory=DictCursor) as conn:
-            cursor = conn.cursor()
-            cursor.execute(query, (filmwork_ids,))
-            results = cursor.fetchall()
-            cursor.close()
-        
-        print(results)
+            filmworks = []
+            for filmwork in filmworks_block:
+                filmwork = dict(filmwork)
+                persons = {
+                    'DR': None,
+                    'AC': [],
+                    'PR': [],
+                }
+                if person_list := filmwork.pop('persons'):
+                    for person in person_list:
+                        role = person.get('role')
+                        if role == 'DR':
+                            persons['DR'] = person.get('full_name')
+                        else:
+                            persons[role].append(Person(**person))
+                filmwork.update({
+                    'genre': ', '.join(filmwork.pop('genres')),
+                    'director': persons['DR'],
+                    'actors_names': ', '.join([actor.full_name for actor in persons['AC']]),
+                    'writers_names': ', '.join([writer.full_name for writer in persons['PR']]),
+                    'actors': persons['AC'],
+                    'writers': persons['PR'],
+                })
+                obj = ESFilmwork(**filmwork)
+                filmworks.append(obj)
+            
+            yield filmworks
