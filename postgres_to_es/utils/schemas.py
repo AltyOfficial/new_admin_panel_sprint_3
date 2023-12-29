@@ -1,6 +1,12 @@
 from uuid import UUID
+from datetime import datetime
 
 from pydantic import BaseModel
+
+class PGObject(BaseModel):
+    id: UUID
+    modified_at: datetime
+
 
 class Person(BaseModel):
     id: str

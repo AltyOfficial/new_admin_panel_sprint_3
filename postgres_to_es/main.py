@@ -38,38 +38,59 @@ class ETL:
             self.block_size = block_size
             self.pg_extractor = pg_extractor
     
-    def run(self, last_modified: datetime):
-        self.etl_genres(last_modified)
-        self.etl_persons(last_modified)
-        self.etl_filmworks(last_modified)
+    def schemas_to_ids(self, objects: list) -> list:
+        """Extract id of each object in list and return list of ids."""
 
-    def etl_genres(self, last_modified: datetime):
-        fw_ids = self.pg_extractor.get_fw_ids_by_modified_genres(last_modified)
-        for block in fw_ids:
-            fws = self.pg_extractor.extract_filmworks(list(block))
-            for fw_block in fws:
-                print(len(fw_block))
-                pass
+        id_list = [str(obj.id) for obj in objects]
+        return id_list
     
-    def etl_persons(self, last_modified: datetime):
-        fw_ids = self.pg_extractor.get_fw_ids_by_modified_persons(last_modified)
-        for block in fw_ids:
-            fws = self.pg_extractor.extract_filmworks(list(block))
-            for fw_block in fws:
-                print(len(fw_block))
-                pass
+    def run(self, last_modified: datetime):
+        fw_ids = []
+        results = self.get_filmwork_ids_by_modified_persons(last_modified)
+        print(results)
+
+
+        fw_ids += results
+
+        print(fw_ids)
+
+        filmworks = self.pg_extractor.extract_filmwork_data(list(set(fw_ids)))
+        print(filmworks)
+
+
+        self.pg_extractor._close_connection()
     
-    def etl_filmworks(self, last_modified: datetime):
-        fw_ids = self.pg_extractor.get_fw_ids_by_modified_filmworks(last_modified)
-        for block in fw_ids:
-            fws = self.pg_extractor.extract_filmworks(list(block))
-            for fw_block in fws:
-                print(len(fw_block))
-                pass
+    def get_filmwork_ids_by_modified_persons(self, last_modified: datetime):
+        """"""
+
+        persons = self.pg_extractor.extract_modified_persons(last_modified)
+        person_ids = self.schemas_to_ids(persons)
+        filmworks = self.pg_extractor.extract_filmworks_by_modified_persons(
+            person_ids,
+        )
+        filmwork_ids = self.schemas_to_ids(filmworks)
+
+        return filmwork_ids
+    
+    # def etl_persons(self, last_modified: datetime):
+    #     fw_ids = self.pg_extractor.get_fw_ids_by_modified_persons(last_modified)
+    #     for block in fw_ids:
+    #         fws = self.pg_extractor.extract_filmworks(list(block))
+    #         for fw_block in fws:
+    #             print(len(fw_block))
+    #             pass
+    
+    # def etl_filmworks(self, last_modified: datetime):
+    #     fw_ids = self.pg_extractor.get_fw_ids_by_modified_filmworks(last_modified)
+    #     for block in fw_ids:
+    #         fws = self.pg_extractor.extract_filmworks(list(block))
+    #         for fw_block in fws:
+    #             print(len(fw_block))
+    #             pass
 
 
 def main():
-    pg_extractor = PostgresExtractor('skip', DSN, BLOCK_SIZE)
+    pg_extractor = PostgresExtractor(DSN, BLOCK_SIZE)
 
     data = state.get_state('last_modified')
     if not data:
@@ -82,4 +103,20 @@ def main():
         break
 
 if __name__ == '__main__':
+    # import backoff
+
+    # # Новая функция, которая вызывает execute_query
+    # def call_execute_query():
+    #     return execute_query()
+
+    # # Декоратор backoff.on_exception для обработки исключений ZeroDivisionError
+    # @backoff.on_exception(backoff.expo, ZeroDivisionError)
+    # def execute_query():
+    #     return 1 / 0  # Генерируем исключение ZeroDivisionError
+
+    # # Теперь вызываем нашу новую функцию, которая вызывает execute_query
+    # try:
+    #     call_execute_query()
+    # except backoff.BaseException as e:
+    #     print(f"Caught an exception: {e}")
     main()
