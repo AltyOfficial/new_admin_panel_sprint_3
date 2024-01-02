@@ -1,8 +1,24 @@
 get_modified_persons = """
     SELECT DISTINCT id, modified_at
     FROM content.person
-    WHERE modified_at > %s::date
-    ORDER BY modified_at
+    WHERE (modified_at > %s OR (modified_at = %s AND id > %s))
+    ORDER BY modified_at, id
+    LIMIT %s;
+"""
+
+get_modified_genres = """
+    SELECT DISTINCT id, modified_at
+    FROM content.genre
+    WHERE (modified_at > %s OR (modified_at = %s AND id > %s))
+    ORDER BY modified_at, id
+    LIMIT %s;
+"""
+
+get_modified_filmworks = """
+    SELECT DISTINCT id, modified_at
+    FROM content.filmwork
+    WHERE (modified_at > %s OR (modified_at = %s AND id > %s))
+    ORDER BY modified_at, id
     LIMIT %s;
 """
 
@@ -11,6 +27,13 @@ get_filmworks_by_modified_persons = """
     FROM content.filmwork fw
     LEFT JOIN content.person_filmwork pfw ON pfw.filmwork_id = fw.id 
     WHERE pfw.person_id IN %s;
+"""
+
+get_filmworks_by_modified_genres = """
+    SELECT DISTINCT fw.id, fw.modified_at
+    FROM content.filmwork fw
+    LEFT JOIN content.genre_filmwork gfw ON gfw.filmwork_id = fw.id 
+    WHERE gfw.genre_id IN %s;
 """
 
 get_filmworks = """
@@ -40,32 +63,4 @@ get_filmworks = """
     LEFT JOIN content.genre g ON g.id = gfw.genre_id
     WHERE fw.id IN %s
     GROUP BY fw.id;
-"""
-
-
-
-
-
-
-
-
-extract_modified_filmworks_by_filmworls = """
-    SELECT DISTINCT id, modified_at
-    FROM content.filmwork
-    WHERE modified_at > %s::date
-    ORDER BY modified_at;
-"""
-
-extract_modified_genres = """
-    SELECT DISTINCT id, modified_at
-    FROM content.genre
-    WHERE modified_at > %s::date
-    ORDER BY modified_at;
-"""
-
-extract_modified_filmworks_by_genres = """
-    SELECT DISTINCT fw.id, fw.modified_at
-    FROM content.filmwork fw
-    LEFT JOIN content.genre_filmwork gfw ON gfw.filmwork_id = fw.id 
-    WHERE gfw.genre_id IN %s;
 """

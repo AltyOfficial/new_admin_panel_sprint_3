@@ -1,11 +1,13 @@
 import logging
 import os
+import uuid
 from datetime import datetime
 
 from pg_extractor import PostgresExtractor
 from dotenv import load_dotenv
 
 from state.state import state
+from utils.schemas import PGObject
 
 load_dotenv()
 
@@ -44,79 +46,139 @@ class ETL:
         id_list = [str(obj.id) for obj in objects]
         return id_list
     
-    def run(self, last_modified: datetime):
-        fw_ids = []
-        results = self.get_filmwork_ids_by_modified_persons(last_modified)
-        print(results)
-
-
-        fw_ids += results
-
-        print(fw_ids)
-
-        filmworks = self.pg_extractor.extract_filmwork_data(list(set(fw_ids)))
-        print(filmworks)
-
-
-        self.pg_extractor._close_connection()
-    
-    def get_filmwork_ids_by_modified_persons(self, last_modified: datetime):
+    def check_state(self):
         """"""
 
-        persons = self.pg_extractor.extract_modified_persons(last_modified)
-        person_ids = self.schemas_to_ids(persons)
-        filmworks = self.pg_extractor.extract_filmworks_by_modified_persons(
-            person_ids,
-        )
-        filmwork_ids = self.schemas_to_ids(filmworks)
+        last_modified = [
+            'last_modified_person',
+            'last_modified_genre',
+            'last_modified_filmwork',
+        ]
 
-        return filmwork_ids
+        last_processed_ids = [
+            'last_filmwork_id',
+            'last_genre_id',
+            'last_person_id',
+        ]
+
+        for modified in last_modified:
+            if not state.get_state(modified):
+                state.set_state(modified, str(datetime(2000, 1, 1)))
+        
+        for id in last_processed_ids:
+            if not state.get_state(id):
+                state.set_state(id, str(uuid.uuid4()))
     
-    # def etl_persons(self, last_modified: datetime):
-    #     fw_ids = self.pg_extractor.get_fw_ids_by_modified_persons(last_modified)
-    #     for block in fw_ids:
-    #         fws = self.pg_extractor.extract_filmworks(list(block))
-    #         for fw_block in fws:
-    #             print(len(fw_block))
-    #             pass
+    def run(self):
+
+        self.check_state()
+        
+        last_modified_person = state.get_state('last_modified_person')
+        last_modified_genre = state.get_state('last_modified_genre')
+        last_modified_filmwork = state.get_state('last_modified_filmwork')
+
+        last_person_id = state.get_state('last_person_id')
+        last_genre_id = state.get_state('last_genre_id')
+        last_filmwork_id = state.get_state('last_filmwork_id')
+        fw_ids = []
+
+        results, last_person = self.get_filmwork_ids_by_modified_persons(
+            last_modified_person,
+            last_person_id,
+        )
+        print(f'{len(results)} - persons')
+        fw_ids += results
+
+        results, last_genre = self.get_filmwork_ids_by_modified_genres(
+            last_modified_genre,
+            last_genre_id,
+        )
+        print(f'{len(results)} - genres')
+        fw_ids += results
+
+        results, last_filmwork = self.get_modified_filmwork_ids(
+            last_modified_filmwork,
+            last_filmwork_id,
+        )
+        print(last_modified_filmwork)
+        print(last_filmwork.modified_at)
+        print(f'{len(results)} - filmworks')
+        fw_ids += results
+
+        filmworks = self.pg_extractor.extract_filmwork_data(list(set(fw_ids)))
+
+        last_ids = {
+            'last_person_id': str(last_person.id),
+            'last_genre_id': str(last_genre.id),
+            'last_filmwork_id': str(last_filmwork.id),
+        }
+        for key, value in last_ids.items():
+            state.set_state(key, value)
+
+        last_modified = {
+            'last_modified_person': str(last_person.modified_at),
+            'last_modified_genre': str(last_genre.modified_at),
+            'last_modified_filmwork': str(last_filmwork.modified_at),
+        }
+        for key, value in last_modified.items():
+            state.set_state(key, value)
+        
+        print(len(filmworks))
+
+
     
-    # def etl_filmworks(self, last_modified: datetime):
-    #     fw_ids = self.pg_extractor.get_fw_ids_by_modified_filmworks(last_modified)
-    #     for block in fw_ids:
-    #         fws = self.pg_extractor.extract_filmworks(list(block))
-    #         for fw_block in fws:
-    #             print(len(fw_block))
-    #             pass
+    def get_filmwork_ids_by_modified_persons(self, last_modified: datetime, last_id: str):
+        """"""
+
+        persons = self.pg_extractor.extract_modified_persons(last_modified, last_id)
+        if persons:
+            last_person = persons[-1]
+            person_ids = self.schemas_to_ids(persons)
+            filmworks = self.pg_extractor.extract_filmworks_by_modified_persons(
+                person_ids,
+            )
+            filmwork_ids = self.schemas_to_ids(filmworks)
+
+            return filmwork_ids, last_person
+
+        return [], PGObject(id=uuid.UUID(last_id), modified_at=last_modified)
+
+    def get_filmwork_ids_by_modified_genres(self, last_modified: datetime, last_id: str):
+        """"""
+
+        genres = self.pg_extractor.extract_modified_genres(last_modified, last_id)
+        if genres:
+            last_genre = genres[-1]
+            genre_ids = self.schemas_to_ids(genres)
+            filmworks = self.pg_extractor.extract_filmworks_by_modified_genres(
+                genre_ids,
+            )
+            filmwork_ids = self.schemas_to_ids(filmworks)
+
+            return filmwork_ids, last_genre
+    
+        return [], PGObject(id=uuid.UUID(last_id), modified_at=last_modified)
+    
+    def get_modified_filmwork_ids(self, last_modified: datetime, last_id: str):
+        """"""
+
+        filmworks = self.pg_extractor.extract_modified_filmworks(last_modified, last_id)
+
+        if filmworks:
+            last_filmwork = filmworks[-1]
+            filmwork_ids = self.schemas_to_ids(filmworks)
+
+            return filmwork_ids, last_filmwork
+        
+        return [], PGObject(id=uuid.UUID(last_id), modified_at=last_modified)
 
 
 def main():
     pg_extractor = PostgresExtractor(DSN, BLOCK_SIZE)
-
-    data = state.get_state('last_modified')
-    if not data:
-        state.set_state('last_modified', str(datetime(2000, 1, 1)))
-    data = state.get_state('last_modified')
-    
     etl = ETL(BLOCK_SIZE, pg_extractor)
+
     while True:
-        etl.run(data)
-        break
+        etl.run()
 
 if __name__ == '__main__':
-    # import backoff
-
-    # # Новая функция, которая вызывает execute_query
-    # def call_execute_query():
-    #     return execute_query()
-
-    # # Декоратор backoff.on_exception для обработки исключений ZeroDivisionError
-    # @backoff.on_exception(backoff.expo, ZeroDivisionError)
-    # def execute_query():
-    #     return 1 / 0  # Генерируем исключение ZeroDivisionError
-
-    # # Теперь вызываем нашу новую функцию, которая вызывает execute_query
-    # try:
-    #     call_execute_query()
-    # except backoff.BaseException as e:
-    #     print(f"Caught an exception: {e}")
     main()

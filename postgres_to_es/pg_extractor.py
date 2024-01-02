@@ -1,4 +1,5 @@
 from datetime import datetime
+import uuid
 
 import psycopg2
 from psycopg2.extras import DictCursor
@@ -51,22 +52,55 @@ class PostgresExtractor:
             cursor.execute(query, params)
             return cursor.fetchall()
     
-    def extract_modified_persons(self, last_modified: datetime) -> list:
+    def extract_modified_persons(self, last_modified: datetime, last_id: uuid.UUID) -> list:
         """Ext"""
 
         results = self._execute_query(
             queries.get_modified_persons,
-            (last_modified, self.block_size),
+            (last_modified, last_modified, last_id, self.block_size),
         )
 
         persons = [PGObject(**person) for person in results]
         return persons
+    
+    def extract_modified_genres(self, last_modified: datetime, last_id: uuid.UUID) -> list:
+        """"""
+
+        results = self._execute_query(
+            queries.get_modified_genres,
+            (last_modified, last_modified, last_id, self.block_size),
+        )
+
+        genres = [PGObject(**genre) for genre in results]
+        return genres
+    
+    def extract_modified_filmworks(self, last_modified: datetime, last_id: uuid.UUID) -> list:
+        """"""
+
+        results = self._execute_query(
+            queries.get_modified_filmworks,
+            (last_modified, last_modified, last_id, self.block_size),
+        )
+
+        filmworkds = [PGObject(**filmwork) for filmwork in results]
+        return filmworkds
     
     def extract_filmworks_by_modified_persons(self, id_list: list) -> list:
         """Extract filmwork objects by modified persons."""
 
         results = self._execute_query(
             queries.get_filmworks_by_modified_persons,
+            (tuple(id_list),),
+        )
+
+        filmworks = [PGObject(**filmwork) for filmwork in results]
+        return filmworks
+
+    def extract_filmworks_by_modified_genres(self, id_list: list) -> list:
+        """"""
+
+        results = self._execute_query(
+            queries.get_filmworks_by_modified_genres,
             (tuple(id_list),),
         )
 
