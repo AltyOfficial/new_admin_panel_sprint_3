@@ -1,30 +1,37 @@
-from elasticsearch import Elasticsearch, helpers
-
-from utils.es_index import es_index
+import json
+import os
 
 import backoff
-
+from elasticsearch import Elasticsearch, helpers
 
 
 class ESLoader:
 
-    def __init__(self, index_name: str):
-        self.base_url = 'http://127.0.0.1:9200'
+    def __init__(self, params: dict, index_name: str):
+        self.es = Elasticsearch(params)
         self.index_name = index_name
-        self.es = Elasticsearch([{'scheme': 'http', 'host': 'localhost', 'port': 9200}])
     
     @backoff.on_exception(wait_gen=backoff.expo, exception=ConnectionError)
-    def create_schema(self):
-        index_name = 'movies'
-        if not self.es.indices.exists(index=index_name):
-            self.es.indices.create(
-                index=index_name,
-                mappings=es_index['mappings'],
-                settings=es_index['settings'],
-            )
+    def create_index(self):
+        """Create ElasticSearch index."""
+
+        index_name = self.index_name
+        index_path = 'utils/es_movies_index.json'
+
+        if os.path.exists(index_path) and not self.es.indices.exists(index=index_name):
+            index_name = self.index_name
+            with open(index_path, 'r') as file:
+                body = json.load(file)
+                self.es.indices.create(
+                    index=index_name,
+                    mappings=body['mappings'],
+                    settings=body['settings'],
+                )
     
     @backoff.on_exception(wait_gen=backoff.expo, exception=ConnectionError)
     def insert_bulk_data(self, data: list):
+        """Insert data into ElasticSearch index."""
+
         actions = []
         for item in data:
             item_dict = {
@@ -47,4 +54,3 @@ class ESLoader:
             actions.append(action)
 
         helpers.bulk(self.es, actions)
-

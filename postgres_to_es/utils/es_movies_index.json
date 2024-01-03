@@ -1,5 +1,5 @@
-es_index = {
-  "settings": {
+{
+    "settings": {
         "refresh_interval": "1s",
         "analysis": {
             "filter": {

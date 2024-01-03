@@ -3,6 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+
 class PGObject(BaseModel):
     id: UUID
     modified_at: datetime

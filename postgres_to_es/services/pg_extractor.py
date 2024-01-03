@@ -1,16 +1,15 @@
-from datetime import datetime
+import logging
 import uuid
+from datetime import datetime
 
+import backoff
 import psycopg2
 from psycopg2.extras import DictCursor
 from psycopg2.extensions import connection
-import backoff
 
-from utils.schemas import ESFilmwork, Person, PGObject
 from utils import queries
+from utils.schemas import ESFilmwork, Person, PGObject
 
-
-import logging
 
 psycopg2.extras.register_uuid()
 
@@ -37,6 +36,7 @@ class PostgresExtractor:
 
             return conn
 
+    @backoff.on_exception(backoff.expo, psycopg2.OperationalError)
     def _close_connection(self) -> None:
         """Closes connection to PostgreSQL database."""
 
