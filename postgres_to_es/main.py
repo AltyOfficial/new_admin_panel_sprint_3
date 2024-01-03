@@ -113,8 +113,8 @@ class ETL:
 
         filmworks = self.pg_extractor.extract_filmwork_data(list(set(fw_ids)))
 
-        self.es_loader.create_index()
-        results = self.es_loader.insert_bulk_data(filmworks)
+        # self.es_loader.create_index()
+        # results = self.es_loader.insert_bulk_data(filmworks)
 
         # Rewrite last modified states
         last_ids = {
@@ -188,9 +188,7 @@ def main():
 
     while True:
         etl.run()
-        time.sleep(1)
-    
-    pg_extractor._close_connection()
+        time.sleep(5)
 
 if __name__ == '__main__':
     main()
