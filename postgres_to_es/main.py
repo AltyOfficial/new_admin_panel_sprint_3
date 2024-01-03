@@ -7,6 +7,7 @@ from pg_extractor import PostgresExtractor
 from dotenv import load_dotenv
 
 from state.state import state
+from es_loader import ESLoader
 from utils.schemas import PGObject
 
 load_dotenv()
@@ -34,11 +35,13 @@ class ETL:
             self,
             block_size: int,
             pg_extractor: PostgresExtractor,
+            es_loader,
         ) -> None:
             """Initialize ETL class."""
 
             self.block_size = block_size
             self.pg_extractor = pg_extractor
+            self.es_loader = es_loader
     
     def schemas_to_ids(self, objects: list) -> list:
         """Extract id of each object in list and return list of ids."""
@@ -106,6 +109,11 @@ class ETL:
         fw_ids += results
 
         filmworks = self.pg_extractor.extract_filmwork_data(list(set(fw_ids)))
+
+        self.es_loader.create_schema()
+        results = self.es_loader.insert_bulk_data(filmworks)
+
+        # print(filmworks)
 
         last_ids = {
             'last_person_id': str(last_person.id),
@@ -175,10 +183,14 @@ class ETL:
 
 def main():
     pg_extractor = PostgresExtractor(DSN, BLOCK_SIZE)
-    etl = ETL(BLOCK_SIZE, pg_extractor)
+    es_loader = ESLoader('test')
+    etl = ETL(BLOCK_SIZE, pg_extractor, es_loader)
+
+    # es_loader.create_schema()
 
     while True:
         etl.run()
+        break
 
 if __name__ == '__main__':
     main()
