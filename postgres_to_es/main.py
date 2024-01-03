@@ -20,6 +20,8 @@ logging.basicConfig(
 
 BLOCK_SIZE = 100
 
+PAUSE_DURATION = 60
+
 DSN = {
     'dbname': os.environ.get('DB_NAME'),
     'user': os.environ.get('DB_USER'),
@@ -39,21 +41,18 @@ ES_PARAMS = [{
 class ETL:
 
     def __init__(self, pg_extractor: PostgresExtractor, es_loader: ESLoader):
-            """Initialize ETL class."""
+        """Initialize ETL class."""
 
-            self.pg_extractor = pg_extractor
-            self.es_loader = es_loader
-    
-    def __exit__(self):
-        self.pg_extractor._close_connection()
-    
+        self.pg_extractor = pg_extractor
+        self.es_loader = es_loader
+
     def schemas_to_ids(self, objects: list) -> list:
         """Extract id of each object in list and return list of ids."""
 
         id_list = [str(obj.id) for obj in objects]
         return id_list
-    
-    def check_state(self):
+
+    def check_state(self) -> None:
         """Check if necessary state values exist or create base values."""
 
         last_modified = [
@@ -71,16 +70,18 @@ class ETL:
         for modified in last_modified:
             if not state.get_state(modified):
                 state.set_state(modified, str(datetime(2000, 1, 1)))
-        
+
         for id in last_processed_ids:
             if not state.get_state(id):
                 state.set_state(id, str(uuid.uuid4()))
-    
-    def run(self):
+
+    def run(self) -> None:
         """Main ETL proccess function."""
 
+        logging.info('ETL proccess started.')
+
         self.check_state()
-        
+
         # last modified states
         last_modified_person = state.get_state('last_modified_person')
         last_modified_genre = state.get_state('last_modified_genre')
@@ -113,8 +114,8 @@ class ETL:
 
         filmworks = self.pg_extractor.extract_filmwork_data(list(set(fw_ids)))
 
-        # self.es_loader.create_index()
-        # results = self.es_loader.insert_bulk_data(filmworks)
+        self.es_loader.create_index()
+        results = self.es_loader.insert_bulk_data(filmworks)
 
         # Rewrite last modified states
         last_ids = {
@@ -134,15 +135,24 @@ class ETL:
         for key, value in last_modified.items():
             state.set_state(key, str(value))
 
-    def get_filmwork_ids_by_modified_persons(self, last_modified: datetime, last_id: str):
+        logging.info('ETL proccess stopped.')
+
+    def get_filmwork_ids_by_modified_persons(
+        self, last_modified: datetime, last_id: str
+    ) -> (list, PGObject):
         """Get filmwork ids by persons that have been modified."""
 
-        persons = self.pg_extractor.extract_modified_persons(last_modified, last_id)
+        persons = self.pg_extractor.extract_modified_persons(
+            last_modified,
+            last_id,
+        )
         if persons:
             last_person = persons[-1]
             person_ids = self.schemas_to_ids(persons)
-            filmworks = self.pg_extractor.extract_filmworks_by_modified_persons(
-                person_ids,
+            filmworks = (
+                self.pg_extractor.extract_filmworks_by_modified_persons(
+                    person_ids,
+                )
             )
             filmwork_ids = self.schemas_to_ids(filmworks)
 
@@ -150,10 +160,15 @@ class ETL:
 
         return [], PGObject(id=uuid.UUID(last_id), modified_at=last_modified)
 
-    def get_filmwork_ids_by_modified_genres(self, last_modified: datetime, last_id: str):
+    def get_filmwork_ids_by_modified_genres(
+        self, last_modified: datetime, last_id: str
+    ) -> (list, PGObject):
         """Get filmwork ids by genres that have been modified."""
 
-        genres = self.pg_extractor.extract_modified_genres(last_modified, last_id)
+        genres = self.pg_extractor.extract_modified_genres(
+            last_modified,
+            last_id,
+        )
         if genres:
             last_genre = genres[-1]
             genre_ids = self.schemas_to_ids(genres)
@@ -163,20 +178,25 @@ class ETL:
             filmwork_ids = self.schemas_to_ids(filmworks)
 
             return filmwork_ids, last_genre
-    
+
         return [], PGObject(id=uuid.UUID(last_id), modified_at=last_modified)
-    
-    def get_modified_filmwork_ids(self, last_modified: datetime, last_id: str):
+
+    def get_modified_filmwork_ids(
+        self, last_modified: datetime, last_id: str
+    ) -> (list, PGObject):
         """Return list of modified filmwork ids."""
 
-        filmworks = self.pg_extractor.extract_modified_filmworks(last_modified, last_id)
+        filmworks = self.pg_extractor.extract_modified_filmworks(
+            last_modified,
+            last_id,
+        )
 
         if filmworks:
             last_filmwork = filmworks[-1]
             filmwork_ids = self.schemas_to_ids(filmworks)
 
             return filmwork_ids, last_filmwork
-        
+
         return [], PGObject(id=uuid.UUID(last_id), modified_at=last_modified)
 
 
@@ -188,7 +208,8 @@ def main():
 
     while True:
         etl.run()
-        time.sleep(5)
+        time.sleep(PAUSE_DURATION)
+
 
 if __name__ == '__main__':
     main()

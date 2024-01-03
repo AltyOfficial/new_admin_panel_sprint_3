@@ -25,25 +25,25 @@ get_modified_filmworks = """
 get_filmworks_by_modified_persons = """
     SELECT DISTINCT fw.id, fw.modified_at
     FROM content.filmwork fw
-    LEFT JOIN content.person_filmwork pfw ON pfw.filmwork_id = fw.id 
+    LEFT JOIN content.person_filmwork pfw ON pfw.filmwork_id = fw.id
     WHERE pfw.person_id IN %s;
 """
 
 get_filmworks_by_modified_genres = """
     SELECT DISTINCT fw.id, fw.modified_at
     FROM content.filmwork fw
-    LEFT JOIN content.genre_filmwork gfw ON gfw.filmwork_id = fw.id 
+    LEFT JOIN content.genre_filmwork gfw ON gfw.filmwork_id = fw.id
     WHERE gfw.genre_id IN %s;
 """
 
 get_filmworks = """
     SELECT
-        fw.id, 
-        fw.title, 
-        fw.description, 
-        fw.rating AS imdb_rating, 
-        fw.type, 
-        fw.created_at, 
+        fw.id,
+        fw.title,
+        fw.description,
+        fw.rating AS imdb_rating,
+        fw.type,
+        fw.created_at,
         fw.modified_at,
         (
             SELECT JSON_AGG(
@@ -52,7 +52,7 @@ get_filmworks = """
                     'full_name', p.full_name,
                     'role', pfw.role
                 )
-            ) 
+            )
             FROM content.person_filmwork pfw
             LEFT JOIN content.person p ON p.id = pfw.person_id
             WHERE pfw.filmwork_id = fw.id
