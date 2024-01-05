@@ -21,7 +21,7 @@ class ESFilmwork(BaseModel):
     title: str
     description: str | None
     director: str | None
-    actors_names: str
-    writers_names: str
+    actors_names: list
+    writers_names: list
     actors: list[Person]
     writers: list[Person]

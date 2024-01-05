@@ -122,7 +122,7 @@ class PostgresExtractor:
 
         if filmworks:
             logging.info(
-                'Extracted %s filmworks related to modified persons.',
+                'Extracted %s filmworks related to modified genres.',
                 len(filmworks),
             )
 
@@ -143,7 +143,7 @@ class PostgresExtractor:
         for filmwork in filmworks:
             params = dict(filmwork)
             persons = {
-                'DR': None,
+                'DR': '',
                 'AC': [],
                 'PR': [],
             }
@@ -159,12 +159,10 @@ class PostgresExtractor:
             params.update({
                 'genre': ', '.join(params.pop('genres')),
                 'director': persons['DR'],
-                'actors_names': ', '.join(
-                    [actor.full_name for actor in persons['AC']],
-                ),
-                'writers_names': ', '.join(
-                    [writer.full_name for writer in persons['PR']],
-                ),
+                'actors_names': [actor.full_name for actor in persons['AC']],
+                'writers_names': [
+                    writer.full_name for writer in persons['PR']
+                ],
                 'actors': persons['AC'],
                 'writers': persons['PR'],
             })

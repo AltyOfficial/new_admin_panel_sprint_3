@@ -1,8 +1,14 @@
 import json
+import logging
 import os
 
 import backoff
 from elasticsearch import Elasticsearch, helpers
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(name)s:%(levelname)s - %(message)s'
+)
 
 
 class ESLoader:
@@ -30,6 +36,8 @@ class ESLoader:
                     mappings=body['mappings'],
                     settings=body['settings'],
                 )
+
+            logging.info('ElasticSearch %s index created.', index_name)
 
     @backoff.on_exception(wait_gen=backoff.expo, exception=ConnectionError)
     def insert_bulk_data(self, data: list):
@@ -62,4 +70,8 @@ class ESLoader:
             }
             actions.append(action)
 
-        helpers.bulk(self.es, actions)
+        try:
+            helpers.bulk(self.es, actions)
+            logging.error('Loaded %s objects to ES index.', len(data))
+        except Exception as exc:
+            logging.error('Could not load data to ES: %s.', exc)

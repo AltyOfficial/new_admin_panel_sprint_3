@@ -20,7 +20,7 @@ logging.basicConfig(
 
 BLOCK_SIZE = 100
 
-PAUSE_DURATION = 60
+PAUSE_DURATION = 10
 
 DSN = {
     'dbname': os.environ.get('DB_NAME'),
