@@ -3,7 +3,7 @@ import logging
 import os
 
 import backoff
-from elasticsearch import Elasticsearch, helpers
+from elasticsearch import Elasticsearch, helpers, TransportError
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -17,7 +17,7 @@ class ESLoader:
         self.es = Elasticsearch(params)
         self.index_name = index_name
 
-    @backoff.on_exception(wait_gen=backoff.expo, exception=ConnectionError)
+    @backoff.on_exception(wait_gen=backoff.expo, exception=TransportError)
     def create_index(self):
         """Create ElasticSearch index."""
 
@@ -73,5 +73,7 @@ class ESLoader:
         try:
             helpers.bulk(self.es, actions)
             logging.error('Loaded %s objects to ES index.', len(data))
+            return True
         except Exception as exc:
             logging.error('Could not load data to ES: %s.', exc)
+            return False

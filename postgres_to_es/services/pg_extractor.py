@@ -23,26 +23,40 @@ class PostgresExtractor:
     def __init__(self, params: dict, block_size: int) -> None:
         self.dsn = params
         self.block_size = block_size
-
+        self.connection = self._open_connection()
+    
     @backoff.on_exception(backoff.expo, psycopg2.OperationalError)
-    def _execute_query(self, query: str, params=None):
-        """Execute query and return results."""
+    def _open_connection(self):
+        return psycopg2.connect(**self.dsn, cursor_factory=DictCursor)
+    
+    def _close_connection(self):
+        return self.connection.close()
+    
+    def _execute_query(self, query, params, connection):
+        cursor = connection.cursor()
+        cursor.execute(query, params)
+        return cursor.fetchall()
+    
+    @backoff.on_exception(backoff.expo, psycopg2.OperationalError)
+    def _execute_query_gen(self, query: str, params, connection):
+        cursor = connection.cursor()
+        cursor.execute(query, params)
 
-        with psycopg2.connect(
-            **self.dsn, cursor_factory=DictCursor
-        ) as conn, conn.cursor() as curs:
-
-            curs.execute(query, params)
-            return curs.fetchall()
+        while True:
+            data = cursor.fetchmany(self.block_size)
+            if not data:
+                break
+            yield data
 
     def extract_modified_persons(
-        self, last_modified: datetime, last_id: uuid.UUID
+        self, last_modified: datetime, last_id: uuid.UUID, connection
     ) -> list:
         """Extract person objects that have been modified."""
 
         results = self._execute_query(
             queries.get_modified_persons,
             (last_modified, last_modified, last_id, self.block_size),
+            connection,
         )
 
         persons = [PGObject(**person) for person in results]
@@ -56,13 +70,14 @@ class PostgresExtractor:
         return persons
 
     def extract_modified_genres(
-        self, last_modified: datetime, last_id: uuid.UUID
+        self, last_modified: datetime, last_id: uuid.UUID, connection
     ) -> list:
         """Extract genre objects that have been modified."""
 
         results = self._execute_query(
             queries.get_modified_genres,
             (last_modified, last_modified, last_id, self.block_size),
+            connection,
         )
 
         genres = [PGObject(**genre) for genre in results]
@@ -73,13 +88,14 @@ class PostgresExtractor:
         return genres
 
     def extract_modified_filmworks(
-        self, last_modified: datetime, last_id: uuid.UUID
+        self, last_modified: datetime, last_id: uuid.UUID, connection
     ) -> list:
         """Extract filmwork objects that have been modified."""
 
         results = self._execute_query(
             queries.get_modified_filmworks,
             (last_modified, last_modified, last_id, self.block_size),
+            connection,
         )
 
         filmworks = [PGObject(**filmwork) for filmwork in results]
@@ -92,43 +108,65 @@ class PostgresExtractor:
 
         return filmworks
 
-    def extract_filmworks_by_modified_persons(self, id_list: list) -> list:
+    def extract_filmworks_by_modified_persons(self, id_list: list, connection) -> list:
         """Extract filmwork objects by modified persons."""
 
-        results = self._execute_query(
+        results = self._execute_query_gen(
             queries.get_filmworks_by_modified_persons,
             (tuple(id_list),),
+            connection,
         )
 
-        filmworks = [PGObject(**filmwork) for filmwork in results]
-
-        if filmworks:
+        for data in results:
+            filmworks = [PGObject(**filmwork) for filmwork in data]
             logging.info(
                 'Extracted %s filmworks related to modified persons.',
                 len(filmworks),
             )
+            yield filmworks
 
-        return filmworks
-
-    def extract_filmworks_by_modified_genres(self, id_list: list) -> list:
+    def extract_filmworks_by_modified_genres(self, id_list: list, connection) -> list:
         """Extract filmwork objects by modified genres."""
 
-        results = self._execute_query(
+        results = self._execute_query_gen(
             queries.get_filmworks_by_modified_genres,
             (tuple(id_list),),
+            connection,
         )
 
-        filmworks = [PGObject(**filmwork) for filmwork in results]
-
-        if filmworks:
+        for data in results:
+            filmworks = [PGObject(**filmwork) for filmwork in data]
             logging.info(
                 'Extracted %s filmworks related to modified genres.',
                 len(filmworks),
             )
+            yield filmworks
+        
+        # with psycopg2.connect(
+        #     **self.dsn, cursor_factory=DictCursor
+        # ) as conn, conn.cursor() as curs:
+        #     curs.execute(
+        #         queries.get_filmworks_by_modified_genres,
+        #         (tuple(id_list),),
+        #     )
 
-        return filmworks
+        #     while True:
+        #         data = curs.fetchmany(self.block_size)
+        #         if not data:
+        #             curs.close()
+        #             break
+            
+        #         print('x')
 
-    def extract_filmwork_data(self, id_list: list) -> list:
+        #         filmworks = [PGObject(**filmwork) for filmwork in data]
+        #         logging.info(
+        #             'Extracted %s filmworks related to modified genres.',
+        #             len(filmworks),
+        #         )
+
+        #         yield filmworks
+
+    def extract_filmwork_data(self, id_list: list, connection) -> list:
         """Extract full data of filmworks with selected filmwork ids."""
 
         if not id_list:
@@ -137,6 +175,7 @@ class PostgresExtractor:
         filmworks = self._execute_query(
             queries.get_filmworks,
             (tuple(id_list),),
+            connection,
         )
 
         filmwork_data = []
