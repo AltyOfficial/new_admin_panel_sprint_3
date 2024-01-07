@@ -143,28 +143,28 @@ class PostgresExtractor:
         for filmwork in filmworks:
             params = dict(filmwork)
             persons = {
-                'DR': '',
-                'AC': [],
-                'PR': [],
+                'director': '',
+                'actor': [],
+                'writer': [],
             }
 
             if person_list := params.pop('persons'):
                 for person in person_list:
                     role = person.get('role')
-                    if role == 'DR':
-                        persons['DR'] = person.get('full_name')
+                    if role == 'director':
+                        persons['director'] = person.get('full_name')
                     else:
                         persons[role].append(Person(**person))
 
             params.update({
-                'genre': ', '.join(params.pop('genres')),
-                'director': persons['DR'],
-                'actors_names': [actor.full_name for actor in persons['AC']],
+                'genre': params.pop('genres'),
+                'director': persons['director'],
+                'actors_names': [actor.full_name for actor in persons['actor']],
                 'writers_names': [
-                    writer.full_name for writer in persons['PR']
+                    writer.full_name for writer in persons['writer']
                 ],
-                'actors': persons['AC'],
-                'writers': persons['PR'],
+                'actors': persons['actor'],
+                'writers': persons['writer'],
             })
             filmwork_data.append(ESFilmwork(**params))
 

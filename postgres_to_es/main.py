@@ -18,9 +18,9 @@ logging.basicConfig(
     format='%(name)s:%(levelname)s - %(message)s'
 )
 
-BLOCK_SIZE = 100
+BLOCK_SIZE = 1000
 
-PAUSE_DURATION = 10
+PAUSE_DURATION = 1
 
 DSN = {
     'dbname': os.environ.get('DB_NAME'),

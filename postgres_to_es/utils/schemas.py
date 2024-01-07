@@ -17,7 +17,7 @@ class Person(BaseModel):
 class ESFilmwork(BaseModel):
     id: UUID
     imdb_rating: float | None
-    genre: str | None
+    genre: list
     title: str
     description: str | None
     director: str | None
