@@ -7,24 +7,26 @@ services:
     image: postgres:13.0-alpine
     restart: always
     volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
       - db_value:/var/lib/postgresql/data/
     env_file:
       - ./.env
     networks:
       - etl_network
-    command:
-      -p ${POSTGRES_PORT}
+    ports:
+      - "${POSTGRES_PORT}:${POSTGRES_PORT}"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
   
   elasticsearch:
+    container_name: es
     image: elasticsearch:8.11.3
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=-Xms200m -Xmx200m"
+      - "ES_JAVA_OPTS=-Xms100m -Xmx100m"
     expose:
       - "9200"
     depends_on:
@@ -34,8 +36,8 @@ services:
     networks:
       - etl_network
   
-  etl:
-    container_name: etl
+  pg_to_es:
+    container_name: pg_to_es
     build: ../postgres_to_es/
     networks:
       - etl_network
@@ -44,6 +46,19 @@ services:
     depends_on:
       elasticsearch:
         condition: service_started
+      db:
+        condition: service_healthy
+      sqlite_to_pg:
+        condition: service_completed_successfully
+  
+  sqlite_to_pg:
+    container_name: sqlite_to_pg
+    build: ../sqlite_to_postgres/
+    networks:
+      - etl_network
+    env_file:
+      - ./.env
+    depends_on:
       db:
         condition: service_healthy
 

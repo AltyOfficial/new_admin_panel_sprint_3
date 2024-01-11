@@ -11,7 +11,7 @@ from services.pg_extractor import PostgresExtractor
 from state.state import state
 from utils.schemas import PGObject
 
-load_dotenv()
+load_dotenv(dotenv_path='../etl/.env')
 
 logging.getLogger('elastic_transport.transport').setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
@@ -22,14 +22,14 @@ logging.basicConfig(
 
 BLOCK_SIZE = 1000
 
-PAUSE_DURATION = 1
+PAUSE_DURATION = 60
 
 DSN = {
-    'dbname': os.environ.get('DB_NAME'),
-    'user': os.environ.get('DB_USER'),
-    'password': os.environ.get('DB_PASSWORD'),
-    'host': os.environ.get('DB_HOST', 'localhost'),
-    'port': os.environ.get('DB_PORT', 5432),
+    'dbname': os.environ.get('POSTGRES_DB'),
+    'user': os.environ.get('POSTGRES_USER'),
+    'password': os.environ.get('POSTGRES_PASSWORD'),
+    'host': os.environ.get('POSTGRES_HOST', 'localhost'),
+    'port': os.environ.get('POSTGRES_PORT', 5432),
     'options': '-c search_path=content'
 }
 
@@ -221,71 +221,6 @@ class ETL:
             return last_filmwork
 
         return PGObject(id=uuid.UUID(last_id), modified_at=last_modified)
-
-
-    # def get_filmwork_ids_by_modified_persons(
-    #     self, last_modified: datetime, last_id: str
-    # ) -> (list, PGObject):
-    #     """Get filmwork ids by persons that have been modified."""
-
-    #     persons = self.pg_extractor.extract_modified_persons(
-    #         last_modified,
-    #         last_id,
-    #     )
-    #     if persons:
-    #         last_person = persons[-1]
-    #         person_ids = self.schemas_to_ids(persons)
-    #         filmworks = (
-    #             self.pg_extractor.extract_filmworks_by_modified_persons(
-    #                 person_ids,
-    #             )
-    #         )
-    #         for fws in filmworks:
-    #             print(len(fws))
-    #         filmwork_ids = self.schemas_to_ids(filmworks)
-
-    #         return filmwork_ids, last_person
-
-    #     return [], PGObject(id=uuid.UUID(last_id), modified_at=last_modified)
-
-    # def get_filmwork_ids_by_modified_genres(
-    #     self, last_modified: datetime, last_id: str
-    # ) -> (list, PGObject):
-    #     """Get filmwork ids by genres that have been modified."""
-
-    #     genres = self.pg_extractor.extract_modified_genres(
-    #         last_modified,
-    #         last_id,
-    #     )
-    #     if genres:
-    #         last_genre = genres[-1]
-    #         genre_ids = self.schemas_to_ids(genres)
-    #         filmworks = self.pg_extractor.extract_filmworks_by_modified_genres(
-    #             genre_ids,
-    #         )
-    #         filmwork_ids = self.schemas_to_ids(filmworks)
-
-    #         return filmwork_ids, last_genre
-
-    #     return [], PGObject(id=uuid.UUID(last_id), modified_at=last_modified)
-
-    # def get_modified_filmwork_ids(
-    #     self, last_modified: datetime, last_id: str
-    # ) -> (list, PGObject):
-    #     """Return list of modified filmwork ids."""
-
-    #     filmworks = self.pg_extractor.extract_modified_filmworks(
-    #         last_modified,
-    #         last_id,
-    #     )
-
-    #     if filmworks:
-    #         last_filmwork = filmworks[-1]
-    #         filmwork_ids = self.schemas_to_ids(filmworks)
-
-    #         return filmwork_ids, last_filmwork
-
-    #     return [], PGObject(id=uuid.UUID(last_id), modified_at=last_modified)
 
 
 def main():

@@ -141,30 +141,6 @@ class PostgresExtractor:
                 len(filmworks),
             )
             yield filmworks
-        
-        # with psycopg2.connect(
-        #     **self.dsn, cursor_factory=DictCursor
-        # ) as conn, conn.cursor() as curs:
-        #     curs.execute(
-        #         queries.get_filmworks_by_modified_genres,
-        #         (tuple(id_list),),
-        #     )
-
-        #     while True:
-        #         data = curs.fetchmany(self.block_size)
-        #         if not data:
-        #             curs.close()
-        #             break
-            
-        #         print('x')
-
-        #         filmworks = [PGObject(**filmwork) for filmwork in data]
-        #         logging.info(
-        #             'Extracted %s filmworks related to modified genres.',
-        #             len(filmworks),
-        #         )
-
-        #         yield filmworks
 
     def extract_filmwork_data(self, id_list: list, connection) -> list:
         """Extract full data of filmworks with selected filmwork ids."""

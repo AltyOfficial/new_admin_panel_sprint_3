@@ -13,7 +13,7 @@ from etl_dataclasses import (
     PersonFilmwork,
 )
 
-load_dotenv()
+load_dotenv(dotenv_path='../etl/.env')
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -31,11 +31,11 @@ TABLES = {
 }
 
 DSN = {
-    'dbname': os.environ.get('DB_NAME'),
-    'user': os.environ.get('DB_USER'),
-    'password': os.environ.get('DB_PASSWORD'),
-    'host': os.environ.get('DB_HOST', 'localhost'),
-    'port': os.environ.get('DB_PORT', 5432),
+    'dbname': os.environ.get('POSTGRES_DB'),
+    'user': os.environ.get('POSTGRES_USER'),
+    'password': os.environ.get('POSTGRES_PASSWORD'),
+    'host': os.environ.get('POSTGRES_HOST', 'localhost'),
+    'port': os.environ.get('POSTGRES_PORT', 5432),
     'options': '-c search_path=content'
 }
 

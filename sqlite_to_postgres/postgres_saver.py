@@ -14,7 +14,6 @@ class PostgresSaver:
     def truncate_tables(self) -> None:
         for table_name in self.tables:
             table_name = self.prepare_table_name(table_name)
-            self.execute_query(f"""TRUNCATE content.{table_name}""")
 
     def execute_query(self, query: str, data=None, is_copy=False) -> None:
         with psycopg2.connect(**self.dsn, cursor_factory=DictCursor) as conn:
